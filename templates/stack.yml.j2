@@ -3,6 +3,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Microtrader Stack
 
 Parameters:
+  ApplicationDnsName:
+    Type: String
+    Description: Hostname portion of application FQDN
   ApplicationDesiredCount:
     Type: Number
     Description: The desired number of application instances
@@ -36,6 +39,27 @@ Parameters:
     Default: Default
 
 Resources:
+  ApplicationDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name:
+        Fn::Join:
+          - ""
+          - - Fn::Sub: ${ApplicationDnsName}.
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcName}VpcDomain
+      TTL: "300"
+      HostedZoneName:
+        Fn::Join:
+          - ""
+          - - Fn::ImportValue:
+                Fn::Sub: ${VpcName}VpcDomain
+            - "."
+      Type: CNAME
+      Comment: 
+        Fn::Sub: ${AWS::StackName} Application Record
+      ResourceRecords:
+        - Fn::Sub: ${ApplicationLoadBalancer.DNSName}
   MicrotraderToApplicationLoadBalancerEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
