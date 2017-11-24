@@ -21,12 +21,98 @@ Parameters:
       - t2.micro
       - t2.small
       - t2.medium
+  MicrotraderDashboardHttpPort:
+    Type: Number
+    Description: Container port for Microtrader Dashboard
   VpcName:
     Type: String
     Description: Name of the target VPC
     Default: Default
 
 Resources:
+  PublicLoadBalancerHttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn:
+        Ref: PublicLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - TargetGroupArn:
+            Ref: DashboardServiceTargetGroup
+          Type: forward
+  DashboardServiceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Protocol: HTTP
+      Port:
+        Ref: MicrotraderDashboardHttpPort
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: ${VpcName}VpcId
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+  PublicLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public Load Balancer Security Group
+      VpcId:
+        Fn::ImportValue: 
+          Fn::Sub: ${VpcName}VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: 
+            Fn::Sub: {AWS::StackName}-PublicLoadBalancerSecurityGroup
+  PublicLoadBalancerToMicrotraderDashboardEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort:
+        Ref: MicrotraderDashboardHttpPort
+      ToPort:
+        Ref: MicrotraderDashboardHttpPort
+      DestinationSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      GroupId:
+        Ref: PublicLoadBalancerSecurityGroup
+  PublicLoadBalancerToMicrotraderDashboardIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort:
+        Ref: MicrotraderDashboardHttpPort
+      ToPort:
+        Ref: MicrotraderDashboardHttpPort
+      SourceSecurityGroupId:
+        Ref: PublicLoadBalancerSecurityGroup
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  PublicLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        - Fn::ImportValue:
+            Fn::Sub: ${VpcName}PublicSubnetA
+        - Fn::ImportValue:
+            Fn::Sub: ${VpcName}PublicSubnetB
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: "false"
+        - Key: idle_timeout.timeout_seconds
+          Value: 30
+      SecurityGroups:
+        - Ref: PublicLoadBalancerSecurityGroup
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-PublicLoadBalancer
   ApplicationAutoscalingInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -233,3 +319,9 @@ Resources:
           DestinationSecurityGroupId:
             Fn::ImportValue:
               Fn::Sub: ${VpcName}ProxySecurityGroup
+
+Outputs:
+  PublicLoadBalancerUrl:
+    Description: Public Load Balancer URL
+    Value:
+      Fn::Sub: ${PublicLoadBalancer.DNSName}
