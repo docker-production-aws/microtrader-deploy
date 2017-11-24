@@ -12,7 +12,7 @@ Parameters:
     Description: Amazon machine image ID
   ApplicationKeyName:
     Type: String
-    Description: EC2 key pair for SSH sccess
+    Description: EC2 key pair for SSH access
   ApplicationInstanceType:
     Type: String
     Description: Application EC2 instance type
@@ -24,12 +24,170 @@ Parameters:
   MicrotraderDashboardHttpPort:
     Type: Number
     Description: Container port for Microtrader Dashboard
+  MicrotraderAuditHttpPort:
+    Type: Number
+    Description: Container port for Microtrader Audit Service
+  MicrotraderQuoteHttpPort:
+    Type: Number
+    Description: Container port for Microtrader Quote Service
   VpcName:
     Type: String
     Description: Name of the target VPC
     Default: Default
 
 Resources:
+  MicrotraderToApplicationLoadBalancerEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      DestinationSecurityGroupId:
+        Ref: ApplicationLoadBalancerSecurityGroup
+  MicrotraderToApplicationLoadBalancerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      GroupId:
+        Ref: ApplicationLoadBalancerSecurityGroup
+      SourceSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  ApplicationLoadBalancerToMicrotraderAuditEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort:
+        Ref: MicrotraderAuditHttpPort
+      ToPort:
+        Ref: MicrotraderAuditHttpPort
+      GroupId:
+        Ref: ApplicationLoadBalancerSecurityGroup
+      DestinationSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  ApplicationLoadBalancerToMicrotraderAuditIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort:
+        Ref: MicrotraderAuditHttpPort
+      ToPort:
+        Ref: MicrotraderAuditHttpPort
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      SourceSecurityGroupId:
+        Ref: ApplicationLoadBalancerSecurityGroup
+  ApplicationLoadBalancerToMicrotraderQuoteEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort:
+        Ref: MicrotraderQuoteHttpPort
+      ToPort:
+        Ref: MicrotraderQuoteHttpPort
+      GroupId:
+        Ref: ApplicationLoadBalancerSecurityGroup
+      DestinationSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  ApplicationLoadBalancerToMicrotraderQuoteIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort:
+        Ref: MicrotraderQuoteHttpPort
+      ToPort:
+        Ref: MicrotraderQuoteHttpPort
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      SourceSecurityGroupId:
+        Ref: ApplicationLoadBalancerSecurityGroup
+  ApplicationLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Application Load Balancer Security Group
+      VpcId:
+        Fn::Import:
+          Fn::Sub: ${VpcName}VpcId
+      SecurityGroupIngress: []
+      SecurityGroupEgress: []
+      Tags:
+        - Key: Name
+          Value: 
+            Fn::Sub: ${AWS::StackName}-PublicLoadBalancerSecurityGroup
+  QuoteServiceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: 
+          Fn::Sub: ${VpcName}VpcId
+      HealthCheckPath: /quote/
+      Protocol: HTTP
+      Port:
+        Ref: MicrotraderQuoteHttpPort
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+  AuditServiceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: 
+          Fn::Sub: ${VpcName}VpcId
+      HealthCheckPath: /audit/
+      Protocol: HTTP
+      Port:
+        Ref: MicrotraderAuditHttpPort
+      TargetGroupAttributes: 
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+  AuditServiceListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Priority: 1
+      ListenerArn:
+        Ref: ApplicationLoadBalancerHttpListener
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - Fn::Sub: /audit/*
+      Actions:
+        - TargetGroupArn:
+            Ref: AuditServiceTargetGroup
+          Type: forward
+  ApplicationLoadBalancerHttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn:
+        Ref: ApplicationLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - TargetGroupArn:
+            Ref: QuoteServiceTargetGroup
+          Type: forward
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Subnets:
+        - Fn::ImportValue: 
+            Fn::Sub: ${VpcName}MediumSubnetA
+        - Fn::ImportValue: 
+            Fn::Sub: ${VpcName}MediumSubnetB
+      SecurityGroups:
+        - Ref: ApplicationLoadBalancerSecurityGroup
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: "false"
+        - Key: idle_timeout.timeout_seconds
+          Value : 30
+      Tags:
+        - Key: Name
+          Value: 
+            Fn::Sub: ${AWS::StackName}-ApplicationLoadBalancer
   PublicLoadBalancerHttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
