@@ -105,3 +105,70 @@ Resources:
           Value:
             Ref: ApplicationCluster
           PropagateAtLaunch: "true"
+  MicrotraderClusterDiscoverIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5701
+      ToPort: 5710
+      SourceSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  MicrotraderClusterDiscoverEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5701
+      ToPort: 5710
+      DestinationSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  MicrotraderEventBusIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 15701
+      ToPort: 15704
+      SourceSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  MicrotraderEventBusEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 15701
+      ToPort: 15704
+      DestinationSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  ApplicationAutoscalingSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription:
+        Fn::Sub: ${AWS::StackName} Application Autoscaling Security Group
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: ${VpcName}VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp:
+            Fn::ImportValue:
+              Fn::Sub: ${VpcName}VpcCidr
+      SecurityGroupEgress:
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp:
+            Fn::Join: ["", [ "Fn::ImportValue": { "Fn::Sub": "${VpcName}VpcDnsServer" }, "/32" ] ]
+        - IpProtocol: tcp
+          FromPort: 3128
+          ToPort: 3128
+          DestinationSecurityGroupId:
+            Fn::ImportValue:
+              Fn::Sub: ${VpcName}ProxySecurityGroup
