@@ -1,19 +1,43 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
-Description: AWS CloudFormation Starter Template
+Description: Microtrader Stack
 
 Parameters:
-  MyStackInput:
+  ApplicationDesiredCount:
     Type: Number
-    Description: A random number
+    Description: The desired number of application instances
+    Default: 1
+  VpcName:
+    Type: String
+    Description: Name of the target VPC
+    Default: Default
 
 Resources:
-  StarterBucket{{ Stack.Inputs.MyStackInput }}:
-    Type: "AWS::S3::Bucket"
+  ApplicationAutoscaling:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    CreationPolicy:
+      ResourceSignal:
+        Count:
+          Ref: ApplicationDesiredCount
+        Timeout: PT15M
     Properties:
-      BucketName:
-        Fn::Sub: ${AWS::AccountId}-starter-bucket-${MyStackInput}
+      LaunchConfigurationName:
+        Ref: ApplicationAutoscalingLaunchConfiguration
+      MinSize: 0
+      MaxSize: 4
+      DesiredCapacity:
+        Ref: ApplicationDesiredCount
+      VPCZoneIdentifier:
+        - Fn::ImportValue:
+            Fn::Sub: ${VpcName}MediumSubnetA    
+        - Fn::ImportValue:
+            Fn::Sub: ${VpcName}MediumSubnetB
       Tags:
         - Key: Name
           Value: 
-            Fn::Sub: ${AWS::AccountId}-starter-bucket-${MyStackInput}
+            Fn::Sub: ${AWS::StackName}-ApplicationAutoscaling-instance
+          PropagateAtLaunch: "true"
+        - Key: hazelcast:group
+          Value:
+            Ref: ApplicationCluster
+          PropagateAtLaunch: "true"
