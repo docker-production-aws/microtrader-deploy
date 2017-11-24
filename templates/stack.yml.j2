@@ -7,12 +7,76 @@ Parameters:
     Type: Number
     Description: The desired number of application instances
     Default: 1
+  ApplicationImageId:
+    Type: String
+    Description: Amazon machine image ID
+  ApplicationKeyName:
+    Type: String
+    Description: EC2 key pair for SSH sccess
+  ApplicationInstanceType:
+    Type: String
+    Description: Application EC2 instance type
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
   VpcName:
     Type: String
     Description: Name of the target VPC
     Default: Default
 
 Resources:
+  ApplicationAutoscalingLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          commands:
+            10_first_run:
+              command: sh firstrun.sh
+              cwd: /home/ec2-user
+              env:
+                STACK_NAME:
+                  Ref: AWS::StackName
+                AUTOSCALING_GROUP: ApplicationAutoscaling
+                AWS_DEFAULT_REGION:
+                  Ref: AWS::Region
+                ECS_CLUSTER:
+                  Ref: ApplicationCluster
+                PROXY_URL:
+                  Fn::ImportValue:
+                    Fn::Sub: ${VpcName}ProxyUrl
+                DOCKER_NETWORK_MODE: host
+    Properties:
+      ImageId:
+        Ref: ApplicationImageId
+      InstanceType:
+        Ref: ApplicationInstanceType
+      KeyName:
+        Ref: ApplicationKeyName
+      IamInstanceProfile:
+        Ref: ApplicationAutoscalingInstanceProfile
+      SecurityGroups:
+        - Ref: ApplicationAutoscalingSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Join: ["", [
+            "#!/bin/bash\n",
+            "/opt/aws/bin/cfn-init -v ",
+            "    --stack ", { "Ref" : "AWS::StackName" },
+            "    --resource ApplicationAutoscalingLaunchConfiguration ",
+            "    --region ", { "Ref" : "AWS::Region" },
+            "    --http-proxy ", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyUrl" },
+            "    --https-proxy ", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyUrl" },
+            "\n",
+            "/opt/aws/bin/cfn-signal -e $? --stack ", { "Ref" : "AWS::StackName" },
+            "    --resource ApplicationAutoscaling ",
+            "    --region ", { "Ref" : "AWS::Region" },
+            "    --http-proxy ", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyUrl" },
+            "    --https-proxy ", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyUrl" },
+            "\n",
+          ] ]
   ApplicationAutoscaling:
     Type: AWS::AutoScaling::AutoScalingGroup
     CreationPolicy:
