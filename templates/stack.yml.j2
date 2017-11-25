@@ -87,6 +87,62 @@ Conditions:
       - 1
 
 Resources:
+  MigrateTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      NetworkMode: host
+      ContainerDefinitions:
+        - Name: migrate
+          Image:
+            Fn::Sub: ${MicrotraderImage}/microtrader-audit:${MicrotraderImageTag}
+          MemoryReservation: 195
+          Memory: 995
+          Cpu: 200
+          Command:
+            - java
+            - -cp
+            - /app/app.jar
+            - com.pluralsight.dockerproductionaws.admin.Migrate
+          Environment:
+            - Name: JDBC_URL
+              Value:
+                Fn::Sub: jdbc:mysql://${ApplicationDatabase.Endpoint.Address}/${DatabaseName}?useSSL=false
+            - Name: JDBC_USER
+              Value:
+                Ref: DatabaseUsername
+            - Name: JDBC_PASSWORD
+              Value:
+                Ref: DatabasePassword
+            - Name: JDBC_DRIVERCLASS
+              Value: com.mysql.jdbc.Driver
+            - Name: DB_MIGRATIONS_LOCATION
+              Value: db/mysql
+            - Name: JAVA_TOOL_OPTIONS
+              Value:
+                Fn::Join: ["", [
+                  " -Dhttp.proxyHost=", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyHost" },
+                  " -Dhttp.proxyPort=3128",
+                  " -Dhttps.proxyHost=", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyHost" },
+                  " -Dhttps.proxyPort=3128",
+                  " -Dhttp.nonProxyHosts='*.", "Fn::ImportValue": { "Fn::Sub": "${VpcName}VpcDomain" },
+                  "|169.254.*|localhost|127.*|[::1]'"
+                ] ]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::Sub: ${AWS::StackName}/ecs/Tasks/migrate
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: docker
+  MigrateLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName:
+        Fn::Sub: ${AWS::StackName}/ecs/Tasks/migrate
+      RetentionInDays:
+        Ref: LogRetention
   DashboardService:
     Type: AWS::ECS::Service
     DependsOn:
