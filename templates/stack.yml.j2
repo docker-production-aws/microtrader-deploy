@@ -3,6 +3,31 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Microtrader Stack
 
 Parameters:
+  DatabaseMultiAZ:
+    Type: String
+    Description: Enable or disable RDS Multi Availability Zone
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  DatabaseInstanceType:
+    Type: String
+    Description: Database instance type
+    Default: db.t2.micro
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+  DatabaseName:
+    Type: String
+    Description: Database name
+  DatabaseUsername:
+    Type: String
+    Description: Database username
+  DatabasePassword:
+    Type: String
+    Description: Database password
+    NoEcho: true
   ApplicationDnsName:
     Type: String
     Description: Hostname portion of application FQDN
@@ -38,7 +63,89 @@ Parameters:
     Description: Name of the target VPC
     Default: Default
 
+Conditions:
+  DatabaseSingleAZCondition:
+    Fn::Equals:
+      - Ref: DatabaseMultiAZ
+      - "false"
 Resources:
+  ApplicationAutoscalingToApplicationDatabaseEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      GroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+      DestinationSecurityGroupId:
+        Ref: ApplicationDatabaseSecurityGroup
+  ApplicationAutoscalingToApplicationDatabaseIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      GroupId:
+        Ref: ApplicationDatabaseSecurityGroup
+      SourceSecurityGroupId:
+        Ref: ApplicationAutoscalingSecurityGroup
+  ApplicationDatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Application Database Security Group
+      VpcId: 
+        Fn::ImportValue: 
+          Fn::Sub: ${VpcName}VpcId
+      SecurityGroupIngress: []
+      SecurityGroupEgress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 192.0.2.0/32
+      Tags:
+        - Key: Name
+          Value: 
+            Fn::Sub: ${AWS::StackName}-ApplicationDatabaseSecurityGroup
+  ApplicationDatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Application Database Subnet Group
+      SubnetIds:
+        - Fn::ImportValue: 
+            Fn::Sub: ${VpcName}HighSubnetA
+        - Fn::ImportValue: 
+            Fn::Sub: ${VpcName}HighSubnetB
+      Tags:
+        - Key: Name
+          Value: 
+            Fn::Sub: ${AWS::StackName}-ApplicationDatabaseSubnetGroup
+  ApplicationDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      Engine: MySQL
+      EngineVersion: 5.7
+      DBInstanceClass:
+        Ref: DatabaseInstanceType
+      AllocatedStorage: 10
+      StorageType: gp2
+      MasterUsername:
+        Ref: DatabaseUsername
+      MasterUserPassword:
+        Ref: DatabasePassword
+      DBName:
+        Ref: DatabaseName
+      VPCSecurityGroups:
+        - Ref: ApplicationDatabaseSecurityGroup
+      DBSubnetGroupName:
+        Ref: ApplicationDatabaseSubnetGroup
+      MultiAZ:
+        Ref: DatabaseMultiAZ
+      AvailabilityZone: 
+        Fn::If:
+          - DatabaseSingleAZCondition
+          - Fn::Sub: ${AWS::Region}a
+          - Ref: AWS::NoValue
   ApplicationDnsRecord:
     Type: AWS::Route53::RecordSet
     Properties:

@@ -1,2 +1,10 @@
 Stack.Name: microtrader-development
 Stack.Description: Microtrader Stack - Development
+
+# Override all deletion policies of type AWS::RDS::DBInstance
+AWS::RDS::DBInstance:
+  DeletionPolicy: Delete
+
+# Override all deletion policies of type AWS::Logs::LogGroup
+AWS::Logs::LogGroup:
+  DeletionPolicy: Delete
