@@ -90,6 +90,17 @@ Conditions:
       - 1
 
 Resources:
+  ClusterSecret:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${SecretsProvisioner.Arn}
+      Name:
+        Fn::Sub: /${AWS::StackName}/cluster/password
+      Key: CLUSTER_GROUP_PASSWORD
+      KmsKeyId:
+        Fn::ImportValue: CfnMasterKey
+      Trigger: 1
   DatabaseSecret:
     Type: AWS::CloudFormation::CustomResource
     Properties:
