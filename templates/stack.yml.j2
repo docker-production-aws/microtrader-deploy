@@ -286,15 +286,22 @@ Resources:
             - /app/app.jar
             - com.pluralsight.dockerproductionaws.admin.Migrate
           Environment:
+            - Name: SSM_SECRETS
+              Value:
+                Fn::Sub: /${AWS::StackName}/database/password
+            - Name: AWS_DEFAULT_REGION
+              Value:
+                Ref: AWS::Region
+            - Name: HTTPS_PROXY
+              Value:
+                Fn::ImportValue:
+                  Fn::Sub: ${VpcName}ProxyUrl
             - Name: JDBC_URL
               Value:
                 Fn::Sub: jdbc:mysql://${ApplicationDatabase.Endpoint.Address}/${DatabaseName}?useSSL=false
             - Name: JDBC_USER
               Value:
                 Ref: DatabaseUsername
-            - Name: JDBC_PASSWORD
-              Value:
-                Ref: DatabasePassword
             - Name: JDBC_DRIVERCLASS
               Value: com.mysql.jdbc.Driver
             - Name: DB_MIGRATIONS_LOCATION
@@ -450,15 +457,25 @@ Resources:
           Memory: 800
           Cpu: 200
           Environment:
+            - Name: SSM_SECRETS
+              Value:
+                Fn::Sub: /${AWS::StackName}/database/password /${AWS::StackName}/cluster/password
+            - Name: SSM_VERSIONS
+              Value:
+                Fn::Sub: ${DatabaseSecret} ${ClusterSecret}
+            - Name: AWS_DEFAULT_REGION
+              Value:
+                Ref: AWS::Region
+            - Name: HTTPS_PROXY
+              Value:
+                Fn::ImportValue:
+                  Fn::Sub: ${VpcName}ProxyUrl
             - Name: JDBC_URL
               Value:
                 Fn::Sub: jdbc:mysql://${ApplicationDatabase.Endpoint.Address}/${DatabaseName}?useSSL=false
             - Name: JDBC_USER
               Value:
                 Ref: DatabaseUsername
-            - Name: JDBC_PASSWORD
-              Value:
-                Ref: DatabasePassword
             - Name: JDBC_DRIVERCLASS
               Value: com.mysql.jdbc.Driver
             - Name: HTTP_PORT
@@ -474,8 +491,6 @@ Resources:
             - Name: CLUSTER_GROUP_NAME
               Value:
                 Ref: ApplicationCluster
-            - Name: CLUSTER_GROUP_PASSWORD
-              Value: super-secret-password
             - Name: CLUSTER_AWS_ENABLED
               Value: "true"
             - Name: CLUSTER_AWS_REGION
@@ -530,11 +545,22 @@ Resources:
           Memory: 800
           Cpu: 200
           Environment:
+            - Name: SSM_SECRETS
+              Value:
+                Fn::Sub: /${AWS::StackName}/cluster/password
+            - Name: SSM_VERSIONS
+              Value:
+                Fn::Sub: ${ClusterSecret}
+            - Name: HTTPS_PROXY
+              Value:
+                Fn::ImportValue:
+                  Fn::Sub: ${VpcName}ProxyUrl
+            - Name: AWS_DEFAULT_REGION
+              Value:
+                Ref: AWS::Region
             - Name: CLUSTER_GROUP_NAME
               Value:
                 Ref: ApplicationCluster
-            - Name: CLUSTER_GROUP_PASSWORD
-              Value: super-secret-password
             - Name: CLUSTER_AWS_ENABLED
               Value: "true"
             - Name: CLUSTER_AWS_REGION
@@ -588,14 +614,25 @@ Resources:
           Memory: 800
           Cpu: 200
           Environment:
+            - Name: SSM_SECRETS
+              Value:
+                Fn::Sub: /${AWS::StackName}/cluster/password
+            - Name: SSM_VERSIONS
+              Value:
+                Fn::Sub: ${ClusterSecret}
+            - Name: HTTPS_PROXY
+              Value:
+                Fn::ImportValue:
+                  Fn::Sub: ${VpcName}ProxyUrl
+            - Name: AWS_DEFAULT_REGION
+              Value:
+                Ref: AWS::Region
             - Name: HTTP_PORT
               Value:
                 Ref: MicrotraderDashboardHttpPort
             - Name: CLUSTER_GROUP_NAME
               Value:
                 Ref: ApplicationCluster
-            - Name: CLUSTER_GROUP_PASSWORD
-              Value: super-secret-password
             - Name: CLUSTER_AWS_ENABLED
               Value: "true"
             - Name: CLUSTER_AWS_REGION
@@ -671,6 +708,19 @@ Resources:
                 Ref: AWS::Region
               awslogs-stream-prefix: docker
           Environment:
+            - Name: SSM_SECRETS
+              Value:
+                Fn::Sub: /${AWS::StackName}/cluster/password
+            - Name: SSM_VERSIONS
+              Value:
+                Fn::Sub: ${ClusterSecret}
+            - Name: HTTPS_PROXY
+              Value:
+                Fn::ImportValue:
+                  Fn::Sub: ${VpcName}ProxyUrl
+            - Name: AWS_DEFAULT_REGION
+              Value:
+                Ref: AWS::Region
             - Name: HTTP_PORT
               Value:
                 Ref: MicrotraderQuoteHttpPort
@@ -696,8 +746,6 @@ Resources:
             - Name: CLUSTER_GROUP_NAME
               Value:
                 Ref: ApplicationCluster
-            - Name: CLUSTER_GROUP_PASSWORD
-              Value: super-secret-password
             - Name: JAVA_TOOL_OPTIONS
               Value:
                 Fn::Join: ["", [
