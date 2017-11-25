@@ -1182,6 +1182,20 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
+        - PolicyName: SSMSecrets
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                - ssm:GetParameters
+                Resource:
+                  - Fn::Sub: arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/*
+              - Effect: Allow
+                Action:
+                - kms:Decrypt
+                Resource:
+                  Fn::ImportValue: CfnMasterKeyArn
         - PolicyName: ECSContainerInstancePolicy
           PolicyDocument:
             Version: "2012-10-17"
