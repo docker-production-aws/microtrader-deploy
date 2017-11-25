@@ -159,6 +159,18 @@ Resources:
         Fn::Sub: /aws/lambda/${AWS::StackName}-ecsTasks
       RetentionInDays:
         Ref: LogRetention
+  MigrateTask:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn:
+      - ApplicationAutoscaling
+      - ApplicationDatabase
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${EcsTaskRunner.Arn}
+      Cluster:
+        Ref: ApplicationCluster
+      TaskDefinition:
+        Ref: MigrateTaskDefinition
   MigrateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -268,6 +280,7 @@ Resources:
       - AuditServiceLogGroup
       - ApplicationLoadBalancerHttpListener
       - ApplicationDatabase
+      - MigrateTask
     Properties:
       LoadBalancers:
         - ContainerName: audit
