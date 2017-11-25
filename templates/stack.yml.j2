@@ -90,6 +90,18 @@ Conditions:
       - 1
 
 Resources:
+  DatabaseSecret:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${SecretsProvisioner.Arn}
+      Name:
+        Fn::Sub: /${AWS::StackName}/database/password
+      Key: JDBC_PASSWORD
+      Value: AQICAHgUbjHMPVh5UIkKQ7hs45AmaJi63619ROLn46mO+iIpDAG0caV8LIZ2aJDc3shf31dZAAAAczBxBgkqhkiG9w0BBwagZDBiAgEAMF0GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMts5Nz6PbU4XsWYPgAgEQgDC2Vvmhnf4JMJAK3UpiFpLjislV0r5mSE3C9Yl+4syybSj3HheyMLkau+J6PjHvhVQ=
+        # Ref: DatabasePassword
+      KmsKeyId:
+        Fn::ImportValue: CfnMasterKey 
   SecretsProvisionerRole:
     Type: AWS::IAM::Role
     Properties:
