@@ -3,6 +3,14 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Microtrader Stack
 
 Parameters:
+  MicrotraderImage:
+    Type: String
+    Description: Microtrader Docker Image Registry/Organization Base URI
+    Default: 543279062384.dkr.ecr.us-west-2.amazonaws.com/dockerproductionaws
+  MicrotraderImageTag:
+    Type: String
+    Description: Microtrader Docker Image Application Tag
+    Default: latest
   LogRetention:
     Type: Number
     Description: Log Retention (Days)
@@ -74,6 +82,76 @@ Conditions:
       - Ref: DatabaseMultiAZ
       - "false"
 Resources:
+  QuoteTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      NetworkMode: host
+      ContainerDefinitions:
+        - Name: quote
+          Image:
+            Fn::Sub: ${MicrotraderImage}/microtrader-quote:${MicrotraderImageTag}
+          MemoryReservation: 195
+          Memory: 800
+          Cpu: 200
+          Command:
+            - java
+            - -jar
+            - /app/app.jar
+            - -server
+            - -cluster
+            - -Dvertx.hazelcast.config=/app/conf/cluster.xml
+            - -cluster-port=15701
+          PortMappings:
+            - ContainerPort:
+                Ref: MicrotraderQuoteHttpPort
+            - ContainerPort: 15701
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::Sub: ${AWS::StackName}/ecs/QuoteService/quote
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: docker
+          Environment:
+            - Name: HTTP_PORT
+              Value:
+                Ref: MicrotraderQuoteHttpPort
+            - Name: HTTP_ROOT
+              Value: /quote/
+            - Name: HTTP_HOST
+              Value:
+                Ref: ApplicationDnsRecord
+            - Name: HTTP_PUBLIC_PORT
+              Value: 80
+            - Name: CLUSTER_AWS_ENABLED
+              Value: "true"
+            - Name: CLUSTER_AWS_REGION
+              Value:
+                Ref: AWS::Region
+            - Name: CLUSTER_AWS_IAM_ROLE
+              Value: DEFAULT
+            - Name: CLUSTER_AWS_TAG_KEY
+              Value: hazelcast:group
+            - Name: CLUSTER_AWS_TAG_VALUE
+              Value:
+                Ref: ApplicationCluster
+            - Name: CLUSTER_GROUP_NAME
+              Value:
+                Ref: ApplicationCluster
+            - Name: CLUSTER_GROUP_PASSWORD
+              Value: super-secret-password
+            - Name: JAVA_TOOL_OPTIONS
+              Value:
+                Fn::Join: ["", [
+                  " -Xmx672m -XX:MaxMetaspaceSize=128m",
+                  " -Dhttp.proxyHost=", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyHost" },
+                  " -Dhttp.proxyPort=3128",
+                  " -Dhttps.proxyHost=", "Fn::ImportValue": { "Fn::Sub": "${VpcName}ProxyHost" },
+                  " -Dhttps.proxyPort=3128",
+                  " -Dhttp.nonProxyHosts='*.", "Fn::ImportValue": { "Fn::Sub": "${VpcName}VpcDomain" }, 
+                  "|169.254.*|localhost|127.*|[::1]'"
+                ] ]
   ApplicationCluster:
     Type: AWS::ECS::Cluster
   DashboardServiceLogGroup:
