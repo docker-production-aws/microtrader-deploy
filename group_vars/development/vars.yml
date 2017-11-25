@@ -29,4 +29,4 @@ Stack.Inputs.ApplicationImageId: ami-f8ec3f80
 Stack.Inputs.ApplicationKeyName: docker-production-aws
 
 # ECS task runner settings
-Stack.Inputs.EcsTaskRunnerVersion: uRJEarbdsv0.OELs9Y7jJfuch00fprjG
+Stack.Inputs.EcsTaskRunnerVersion: rVuUvROBlMttSPJtTv71MIPZnQn8BN0r
