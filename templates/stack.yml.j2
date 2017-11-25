@@ -269,9 +269,38 @@ Resources:
       TaskDefinition:
         Ref: MigrateTaskDefinition
       RunOnUpdate: "true"
+  MigrateTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SSMSecrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                - ssm:GetParameters
+                Resource:
+                  - Fn::Sub: arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/database/password
+              - Effect: Allow
+                Action:
+                - kms:Decrypt
+                Resource:
+                  Fn::ImportValue: CfnMasterKeyArn
   MigrateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
+      TaskRoleArn:
+        Fn::Sub: ${MigrateTaskRole.Arn}
       NetworkMode: host
       ContainerDefinitions:
         - Name: migrate
