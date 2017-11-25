@@ -3,6 +3,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Microtrader Stack
 
 Parameters:
+  EcsTaskRunnerVersion:
+    Type: String
+    Description: S3 Object Version of CloudFormation ECS Tasks function
   MicrotraderImage:
     Type: String
     Description: Microtrader Docker Image Registry/Organization Base URI
@@ -87,6 +90,75 @@ Conditions:
       - 1
 
 Resources:
+  EcsTaskRunnerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Policies:
+        - PolicyName: EcsTaskRunnerPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Sid: EcsTasks
+              Effect: Allow
+              Action:
+              - ecs:DescribeTasks
+              - ecs:ListTasks
+              - ecs:RunTask
+              - ecs:StartTask
+              - ecs:StopTask
+              - ecs:DescribeContainerInstances
+              - ecs:ListContainerInstances
+              Resource: "*"
+              Condition:
+                ArnEquals:
+                  ecs:cluster: 
+                    Fn::Sub: arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ApplicationCluster}
+            - Sid: ManageLambdaLogs
+              Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:DescribeLogStreams
+              - logs:PutLogEvents
+              Resource:
+                Fn::Sub:
+                  arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-ecsTasks:*:*
+  EcsTaskRunner:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - EcsTaskRunnerLogGroup
+    Properties:
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-ecsTasks
+      Description:
+        Fn::Sub: ${AWS::StackName} ECS Task Runner
+      Handler: ecs_tasks.handler
+      MemorySize: 128
+      Runtime: python2.7
+      Timeout: 300
+      Code:
+        S3Bucket:
+          Fn::Sub: ${AWS::AccountId}-cfn-lambda
+        S3Key: ecsTasks.zip
+        S3ObjectVersion:
+          Ref: EcsTaskRunnerVersion
+      Role:
+        Fn::Sub: ${EcsTaskRunnerRole.Arn}
+  EcsTaskRunnerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AWS::StackName}-ecsTasks
+      RetentionInDays:
+        Ref: LogRetention
   MigrateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
