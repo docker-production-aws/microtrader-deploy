@@ -715,7 +715,7 @@ Resources:
     Properties:
       GroupDescription: Application Load Balancer Security Group
       VpcId:
-        Fn::Import:
+        Fn::ImportValue:
           Fn::Sub: ${VpcName}VpcId
       SecurityGroupIngress: []
       SecurityGroupEgress: []
@@ -832,7 +832,7 @@ Resources:
       Tags:
         - Key: Name
           Value: 
-            Fn::Sub: {AWS::StackName}-PublicLoadBalancerSecurityGroup
+            Fn::Sub: ${AWS::StackName}-PublicLoadBalancerSecurityGroup
   PublicLoadBalancerToMicrotraderDashboardEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
