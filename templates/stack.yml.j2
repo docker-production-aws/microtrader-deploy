@@ -90,22 +90,6 @@ Conditions:
       - 1
 
 Resources:
-  LongRunningTask:
-    Type: AWS::CloudFormation::CustomResource
-    Properties:
-      ServiceToken:
-        Fn::Sub: ${EcsTaskRunner.Arn}
-      Cluster:
-        Ref: ApplicationCluster
-      TaskDefinition:
-        Ref: MigrateTaskDefinition
-      Timeout: 600
-      Overrides:
-        containerOverrides:
-          - name: migrate
-            command:
-              - sleep
-              - 360
   EcsTaskRunnerRole:
     Type: AWS::IAM::Role
     Properties:
