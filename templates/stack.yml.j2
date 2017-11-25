@@ -81,7 +81,124 @@ Conditions:
     Fn::Equals:
       - Ref: DatabaseMultiAZ
       - "false"
+  ApplicationSingleInstanceCondition:
+    Fn::Equals:
+      - Ref: ApplicationDesiredCount
+      - 1
+
 Resources:
+  DashboardService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - QuoteService
+      - AuditService
+      - PortfolioService
+      - ApplicationAutoscaling
+      - DashboardServiceLogGroup
+      - PublicLoadBalancerHttpListener
+    Properties:
+      LoadBalancers:
+        - ContainerName: dashboard
+          ContainerPort:
+            Ref: MicrotraderDashboardHttpPort
+          TargetGroupArn:
+            Ref: DashboardServiceTargetGroup
+      Role:
+        Ref: EcsServiceRole
+      TaskDefinition:
+        Ref: DashboardTaskDefinition
+      Cluster:
+        Ref: ApplicationCluster
+      DesiredCount:
+        Ref: ApplicationDesiredCount
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent:
+          Fn::If:
+            - ApplicationSingleInstanceCondition
+            - 0
+            - 50
+  PortfolioService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - AuditService
+      - ApplicationAutoscaling
+      - PortfolioServiceLogGroup
+    Properties:
+      TaskDefinition:
+        Ref: PortfolioTaskDefinition
+      Cluster:
+        Ref: ApplicationCluster
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+  AuditService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ApplicationAutoscaling
+      - AuditServiceLogGroup
+      - ApplicationLoadBalancerHttpListener
+      - ApplicationDatabase
+    Properties:
+      LoadBalancers:
+        - ContainerName: audit
+          ContainerPort:
+            Ref: MicrotraderAuditHttpPort
+          TargetGroupArn:
+            Ref: AuditServiceTargetGroup
+      Role:
+        Ref: EcsServiceRole
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent:
+          Fn::If:
+            - ApplicationSingleInstanceCondition
+            - 0
+            - 50
+      TaskDefinition:
+        Ref: AuditTaskDefinition
+      Cluster:
+        Ref: ApplicationCluster
+      DesiredCount:
+        Ref: ApplicationDesiredCount
+  EcsServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+  QuoteService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ApplicationAutoscaling
+      - QuoteServiceLogGroup
+      - ApplicationLoadBalancerHttpListener
+    Properties:
+      Role:
+        Ref: EcsServiceRole
+      TaskDefinition:
+        Ref: QuoteTaskDefinition
+      Cluster:
+        Ref: ApplicationCluster
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+      LoadBalancers:
+        - ContainerName: quote
+          ContainerPort:
+            Ref: MicrotraderQuoteHttpPort
+          TargetGroupArn:
+            Ref: QuoteServiceTargetGroup
   AuditTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
