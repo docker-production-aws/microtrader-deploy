@@ -27,3 +27,6 @@ Stack.Inputs.DatabasePassword: super-secret-password
 Stack.Inputs.ApplicationDnsName: dev-microtrader
 Stack.Inputs.ApplicationImageId: ami-f8ec3f80
 Stack.Inputs.ApplicationKeyName: docker-production-aws
+
+# ECS task runner settings
+Stack.Inputs.EcsTaskRunnerVersion: uRJEarbdsv0.OELs9Y7jJfuch00fprjG

@@ -171,6 +171,7 @@ Resources:
         Ref: ApplicationCluster
       TaskDefinition:
         Ref: MigrateTaskDefinition
+      RunOnUpdate: "true"
   MigrateTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
