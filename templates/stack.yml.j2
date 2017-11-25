@@ -3,6 +3,11 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Microtrader Stack
 
 Parameters:
+  LogRetention:
+    Type: Number
+    Description: Log Retention (Days)
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
   DatabaseMultiAZ:
     Type: String
     Description: Enable or disable RDS Multi Availability Zone
@@ -69,6 +74,80 @@ Conditions:
       - Ref: DatabaseMultiAZ
       - "false"
 Resources:
+  ApplicationCluster:
+    Type: AWS::ECS::Cluster
+  DashboardServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName:
+        Fn::Sub: ${AWS::StackName}/ecs/DashboardService/dashboard
+      RetentionInDays:
+        Ref: LogRetention
+  PortfolioServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName:
+        Fn::Sub: ${AWS::StackName}/ecs/PortfolioService/portfolio
+      RetentionInDays:
+        Ref: LogRetention
+  AuditServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName:
+        Fn::Sub: ${AWS::StackName}/ecs/AuditService/audit
+      RetentionInDays:
+        Ref: LogRetention
+  QuoteServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName:
+        Fn::Sub: ${AWS::StackName}/ecs/QuoteService/quote
+      RetentionInDays:
+        Ref: LogRetention
+  DmesgLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: 
+        Fn::Sub: ${AWS::StackName}/ec2/ApplicationAutoscaling/var/log/dmesg
+      RetentionInDays:
+        Ref: LogRetention
+  MessagesLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: 
+        Fn::Sub: ${AWS::StackName}/ec2/ApplicationAutoscaling/var/log/messages
+      RetentionInDays:
+        Ref: LogRetention
+  DockerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: 
+        Fn::Sub: ${AWS::StackName}/ec2/ApplicationAutoscaling/var/log/docker
+      RetentionInDays:
+        Ref: LogRetention
+  EcsAgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: 
+        Fn::Sub: ${AWS::StackName}/ec2/ApplicationAutoscaling/var/log/ecs/ecs-agent
+      RetentionInDays:
+        Ref: LogRetention
+  EcsInitLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: 
+        Fn::Sub: ${AWS::StackName}/ec2/ApplicationAutoscaling/var/log/ecs/ecs-init
+      RetentionInDays:
+        Ref: LogRetention
   ApplicationAutoscalingToApplicationDatabaseEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
@@ -515,6 +594,12 @@ Resources:
           ] ]
   ApplicationAutoscaling:
     Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - DmesgLogGroup
+      - MessagesLogGroup
+      - DockerLogGroup
+      - EcsInitLogGroup
+      - EcsAgentLogGroup
     CreationPolicy:
       ResourceSignal:
         Count:
