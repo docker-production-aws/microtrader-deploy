@@ -90,6 +90,163 @@ Conditions:
       - 1
 
 Resources:
+  ApplicationAutoscalingScaleOutPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: 1
+      AutoScalingGroupName:
+        Ref: ApplicationAutoscaling
+      Cooldown: 600
+  ApplicationAutoscalingScaleInPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: -1
+      AutoScalingGroupName:
+        Ref: ApplicationAutoscaling
+      Cooldown: 600
+  ContainerCapacityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: ECS Cluster Container Free Capacity
+      AlarmActions:
+        - Ref: ApplicationAutoscalingScaleOutPolicy
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value:
+            Ref: ApplicationCluster
+      MetricName: ContainerCapacity
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: ignore
+  IdleHostCapacityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: ECS Cluster Container Free Capacity
+      AlarmActions:
+        - Ref: ApplicationAutoscalingScaleInPolicy
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value:
+            Ref: ApplicationCluster
+      MetricName: IdleHostCapacity
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: ignore
+  EcsCapacityPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: EcsCapacityFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::Sub: ${EcsCapacityEvents.Arn}
+  EcsCapacityEvents:
+    Type: AWS::Events::Rule
+    Properties:
+      Description:
+        Fn::Sub: ${AWS::StackName} ECS Events Rule
+      EventPattern:
+        source:
+          - aws.ecs
+        detail-type:
+          - ECS Container Instance State Change
+        detail:
+          clusterArn:
+            - Fn::Sub: arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ApplicationCluster}
+      Targets:
+        - Arn:
+            Fn::Sub: ${EcsCapacityFunction.Arn}
+          Id:
+            Fn::Sub: ${AWS::StackName}-ecs-events
+  EcsCapacityRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyName: EcsCapacityPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: PublishCloudwatchMetrics
+                Effect: Allow
+                Action:
+                  - cloudwatch:putMetricData
+                Resource: "*"
+              - Sid: ListContainerInstances
+                Effect: Allow
+                Action:
+                  - ecs:ListContainerInstances
+                Resource:
+                  Fn::Sub: arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ApplicationCluster}
+              - Sid: DescribeContainerInstances
+                Effect: Allow
+                Action:
+                  - ecs:DescribeContainerInstances
+                Resource: "*"
+                Condition:
+                  ArnEquals:
+                    ecs:cluster:
+                      Fn::Sub: arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ApplicationCluster}
+              - Sid: ManageLambdaLogs
+                Effect: Allow
+                Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${EcsCapacityLogGroup.Arn}
+  EcsCapacityFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - EcsCapacityLogGroup
+    Properties:
+      Role:
+        Fn::Sub: ${EcsCapacityRole.Arn}
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-ecsCapacity
+      Description:
+        Fn::Sub: ${AWS::StackName} ECS Capacity Manager
+      Code:
+        S3Bucket:
+          Fn::ImportValue: CfnLambdaBucket
+        S3Key: ecsCapacity.zip
+      Runtime: python2.7
+      MemorySize: 128
+      Timeout: 300
+      Handler: ecs_capacity.handler
+      Environment:
+        Variables:
+          CONTAINER_MAX_CPU: 200
+          CONTAINER_MAX_MEMORY: 195
+          TCP_PORT_RESOURCES:
+            Fn::Sub: ${MicrotraderQuoteHttpPort},${MicrotraderAuditHttpPort},${MicrotraderDashboardHttpPort},15701,15702,15703,15704
+  EcsCapacityLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AWS::StackName}-ecsCapacity
+      RetentionInDays:
+        Ref: LogRetention
   LifecycleHookSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -1463,6 +1620,12 @@ Resources:
       - EcsAgentLogGroup
     UpdatePolicy:
       AutoScalingRollingUpdate:
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
         MinInstancesInService:
           Ref: ApplicationDesiredCount
         MinSuccessfulInstancesPercent: 100
