@@ -1461,6 +1461,13 @@ Resources:
       - DockerLogGroup
       - EcsInitLogGroup
       - EcsAgentLogGroup
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService:
+          Ref: ApplicationDesiredCount
+        MinSuccessfulInstancesPercent: 100
+        WaitOnResourceSignals: "true"
+        PauseTime: PT15M 
     CreationPolicy:
       ResourceSignal:
         Count:
