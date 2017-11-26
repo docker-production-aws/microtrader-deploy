@@ -1,0 +1,13 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - ansible-galaxy install -r roles/requirements.yml --force
+  build:
+    commands:
+      - ansible-playbook site.yml -e env=development -e 'Sts.Disabled=true' -e 'Stack.BuildFolder=build' --tags generate
+
+artifacts:
+  files:
+    - build/*
