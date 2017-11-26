@@ -1029,6 +1029,8 @@ Resources:
                 Ref: AWS::Region
               awslogs-stream-prefix: docker
           Environment:
+            - Name: MARKET_PERIOD
+              Value: 5
             - Name: SSM_SECRETS
               Value:
                 Fn::Sub: /${AWS::StackName}/cluster/password
