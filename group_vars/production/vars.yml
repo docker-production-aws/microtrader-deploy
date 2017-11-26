@@ -1,0 +1,32 @@
+# STS role and target account
+Sts.Role: arn:aws:iam::543279062384:role/admin
+
+# Stack settings
+Stack.Name: microtrader-production
+Stack.Description: Microtrader Stack - Production
+
+# Override all deletion policies of type AWS::RDS::DBInstance
+AWS::RDS::DBInstance:
+  DeletionPolicy: Delete
+
+# Override all deletion policies of type AWS::Logs::LogGroup
+AWS::Logs::LogGroup:
+  DeletionPolicy: Delete
+
+# Microtrader settings
+Stack.Inputs.MicrotraderQuoteHttpPort: 8000
+Stack.Inputs.MicrotraderAuditHttpPort: 8001
+Stack.Inputs.MicrotraderDashboardHttpPort: 8002
+
+# Database settings
+Stack.Inputs.DatabaseName: audit
+Stack.Inputs.DatabaseUsername: audit
+Stack.Inputs.DatabasePassword: AQICAHgUbjHMPVh5UIkKQ7hs45AmaJi63619ROLn46mO+iIpDAG0caV8LIZ2aJDc3shf31dZAAAAczBxBgkqhkiG9w0BBwagZDBiAgEAMF0GCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMts5Nz6PbU4XsWYPgAgEQgDC2Vvmhnf4JMJAK3UpiFpLjislV0r5mSE3C9Yl+4syybSj3HheyMLkau+J6PjHvhVQ=
+
+# Application settings
+Stack.Inputs.ApplicationDnsName: prod-microtrader
+Stack.Inputs.ApplicationImageId: ami-f8ec3f80
+Stack.Inputs.ApplicationKeyName: docker-production-aws
+
+# ECS task runner settings
+Stack.Inputs.EcsTaskRunnerVersion: rVuUvROBlMttSPJtTv71MIPZnQn8BN0r
