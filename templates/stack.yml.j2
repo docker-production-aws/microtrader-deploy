@@ -90,6 +90,141 @@ Conditions:
       - 1
 
 Resources:
+  LifecycleHookSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint:
+        Fn::Sub: ${LifecycleHookFunction.Arn}
+      Protocol: lambda
+      TopicArn:
+        Ref: LifecycleHookTopic
+  LifecycleHookPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: LifecycleHookFunction
+      Principal: sns.amazonaws.com
+      SourceArn:
+        Ref: LifecycleHookTopic
+  LifecycleFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyName: LifecycleHookPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Publish
+                Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  Ref: LifecycleHookTopic
+              - Sid: CompleteLifecycleAction
+                Effect: Allow
+                Action:
+                  - autoscaling:CompleteLifecycleAction
+                Resource:
+                  Fn::Sub: arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/${ApplicationAutoscaling}
+              - Sid: ListContainerInstances
+                Effect: Allow
+                Action:
+                  - ecs:ListContainerInstances
+                Resource:
+                  Fn::Sub: arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ApplicationCluster}
+              - Sid: ManageContainerInstances
+                Effect: Allow
+                Action:
+                  - ecs:DescribeContainerInstances
+                  - ecs:UpdateContainerInstancesState
+                Resource: "*"
+                Condition:
+                  ArnEquals:
+                    ecs:cluster:
+                      Fn::Sub: arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ApplicationCluster}
+              - Sid: ManageLambdaLogs
+                Effect: Allow
+                Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${LifecycleHookFunctionLogGroup.Arn}
+  LifecycleHookFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - LifecycleHookFunctionLogGroup
+    Properties:
+      Role:
+        Fn::Sub: ${LifecycleFunctionRole.Arn}
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-lifecycleHooks
+      Description:
+        Fn::Sub: ${AWS::StackName} Autoscaling Lifecycle Hook
+      Code:
+        S3Bucket:
+          Fn::ImportValue: CfnLambdaBucket
+        S3Key: lifecycleHooks.zip
+      Runtime: python2.7
+      MemorySize: 128
+      Timeout: 300
+      Handler: lifecycle_hooks.handler
+      Environment:
+        Variables:
+          ECS_CLUSTER:
+            Ref: ApplicationCluster
+  LifecycleHookFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AWS::StackName}-lifecycleHooks
+      RetentionInDays: 7
+  LifecycleHookTopic:
+    Type: AWS::SNS::Topic
+    Properties: {}
+  LifecycleHookRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: autoscaling.amazonaws.com
+      Policies:
+        - PolicyName: LifecycleHookPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Sid: PublishNotifications
+              Action:
+                - sns:Publish
+              Effect: Allow
+              Resource:
+                Ref: LifecycleHookTopic
+  LifecycleHook:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      RoleARN:
+        Fn::Sub: ${LifecycleHookRole.Arn}
+      AutoScalingGroupName:
+        Ref: ApplicationAutoscaling
+      DefaultResult: CONTINUE
+      HeartbeatTimeout: 900
+      LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
+      NotificationTargetARN:
+        Ref: LifecycleHookTopic
   ClusterSecret:
     Type: AWS::CloudFormation::CustomResource
     Properties:
