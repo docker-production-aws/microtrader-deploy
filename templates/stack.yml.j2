@@ -1127,7 +1127,7 @@ Resources:
               awslogs-stream-prefix: docker
           Environment:
             - Name: MARKET_PERIOD
-              Value: 5
+              Value: 3000
             - Name: SSM_SECRETS
               Value:
                 Fn::Sub: /${AWS::StackName}/cluster/password
