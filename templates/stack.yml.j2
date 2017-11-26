@@ -90,6 +90,111 @@ Conditions:
       - 1
 
 Resources:
+  AuditServiceAutoscalingScaleInPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: ScaleIn
+      PolicyType: StepScaling
+      ScalingTargetId:
+        Ref: AuditServiceAutoscalingTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 360
+        MetricAggregationType: Average
+        StepAdjustments:
+        - ScalingAdjustment: -1
+          MetricIntervalUpperBound: 0
+  AuditServiceAutoscalingScaleOutPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: ScaleOut
+      PolicyType: StepScaling
+      ScalingTargetId:
+        Ref: AuditServiceAutoscalingTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 360
+        MetricAggregationType: Average
+        StepAdjustments:
+        - ScalingAdjustment: 1
+          MetricIntervalLowerBound: 0
+  AuditServiceAutoscalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+      Policies:
+        - PolicyName: AutoscalingPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                - application-autoscaling:DescribeScalableTargets
+                - application-autoscaling:DescribeScalingActivities
+                - application-autoscaling:DescribeScalingPolicies
+                - cloudwatch:DescribeAlarms
+                - cloudwatch:PutMetricAlarm
+                - ecs:DescribeServices
+                - ecs:UpdateService
+                Resource: "*"
+  AuditServiceAutoscalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ResourceId:
+        Fn::Sub: service/${ApplicationCluster}/${AuditService.Name}
+      ScalableDimension: ecs:service:DesiredCount
+      MinCapacity: 1
+      MaxCapacity: 4
+      RoleARN:
+        Fn::Sub: ${AuditServiceAutoscalingRole.Arn}
+  AuditServiceLowCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - Ref: AuditServiceAutoscalingScaleInPolicy
+      AlarmDescription: Audit Service Low CPU 
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value:
+            Ref: ApplicationCluster
+        - Name: ServiceName
+          Value:
+            Fn::Sub: ${AuditService.Name}
+      MetricName: CPUUtilization
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 25
+      ComparisonOperator: LessThanThreshold
+  AuditServiceHighCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - Ref: AuditServiceAutoscalingScaleOutPolicy
+      AlarmDescription: Audit Service High CPU
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value:
+            Ref: ApplicationCluster
+        - Name: ServiceName
+          Value:
+            Fn::Sub: ${AuditService.Name}
+      MetricName: CPUUtilization
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
   ApplicationAutoscalingScaleOutPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
@@ -679,11 +784,7 @@ Resources:
         Ref: ApplicationDesiredCount
       DeploymentConfiguration:
         MaximumPercent: 200
-        MinimumHealthyPercent:
-          Fn::If:
-            - ApplicationSingleInstanceCondition
-            - 0
-            - 50
+        MinimumHealthyPercent: 100
   PortfolioService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -718,11 +819,7 @@ Resources:
         Ref: EcsServiceRole
       DeploymentConfiguration:
         MaximumPercent: 200
-        MinimumHealthyPercent:
-          Fn::If:
-            - ApplicationSingleInstanceCondition
-            - 0
-            - 50
+        MinimumHealthyPercent: 100
       TaskDefinition:
         Ref: AuditTaskDefinition
       Cluster:
